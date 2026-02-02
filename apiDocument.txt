@@ -1,0 +1,761 @@
+Table of Contents 
+KINESIS OVERVIEW 3 
+UPDATES 4 
+INTEGRATION 5 
+AUTH API 7 
+REST API 9 
+Response Header 9 
+Status APIs 9 
+Request 9 
+Response 10 
+Tracking History APIs 12 
+Request 12 
+Response 13 
+Telemetry History APIs 13 
+Request 13 
+Response 14 
+Attribute Retrieval APIs 15 
+Request 15 
+Response 16 
+Attribute Update APIs 17 
+Request 17 
+Response 18 
+Notification Client APIs 18 
+Request 18 
+Response 18 
+PUSH API 20 
+Websockets 20 
+Connect 20 
+Subscribe 20 
+ 
+ 
+ 
+ 
+© Atoll Solutions - Confidential      2 
+KINESIS OVERVIEW 
+Atoll Kinesis is a multi-layer IoT platform for Location Intelligence that is customisable for 
+various use cases. The layers are as follows: 
+1. Sensor layer - these are BLE Tags that are installed on assets, or carried by people. The 
+tags may include additional use-case dependent sensors. 
+2. Infrastructure layer  - these are the fixed anchors comprising Kinesis Anchors and/or 
+WLAN Access Points. They provide the reference to locate tags on a map. 
+3. Compute layer - the Kinesis Location Engine (KLE) is a software engine that 
+aggregates the data and computes tag location. 
+4. Data layer - the Kinesis Middleware (KMW) is a device management platform with 
+APIs for external clients. 
+The diagram below illustrates the overall system architecture of Atoll Kinesis. 
+External clients can retrieve the location and sensor data from the platform using APIs provided 
+by the Kinesis Middleware. This document describes the Kinesis Middleware APIs. 
+© Atoll Solutions - Confidential      
+3 
+UPDATES 
+This section describes the key version updates in this API document. 
+Date 
+Version Component 
+21 Apr 2025 V1P1 Attr APIs 
+06 Mar 2025 V1P0 Auth APIs 
+Update 
+Clarification on limits and pagination 
+OAuth client credentials flow is supported by these 
+APIs to allow clients to access the APIs using their 
+custom client-id and client-secret 
+REST APIs 
+Push APIs 
+Added support for v2 APIs where access is based 
+on an “x-access-token” header with access key 
+obtained from the OAuth APIs provided 
+The existing v1 APIs that use Bearer token with an 
+API key are supported for backward compatibility 
+Added a REST API for registering notification 
+clients and Websocket API for receiving push 
+updates. 
+4 
+© Atoll Solutions - Confidential      
+ 
+ 
+INTEGRATION 
+The Kinesis APIs enable external clients (application) to retrieve all location (tracking) and 
+sensor (telemetry) data received from the Kinesis devices. The Tags and Anchors are identified 
+by their MAC addresses, and as such the Kinesis platform maintains anonymity. Client 
+applications may assign these to assets, people or locations using one of the following 
+mechanisms: 
+1. The application maintains its own mapping database. In this case, the application will 
+retrieve the anonymized data from Kinesis, and map them based on the assignments, 
+before presenting them to the user. 
+2. The application stores the mapping in Kinesis, and uses the Kinesis APIs to store and 
+retrieve the mappings before presenting them to the user. Note that even in this case, 
+the mappings remain opaque to the Kinesis platform. 
+ 
+The table below summarizes the APIs and their typical usage: 
+ 
+Category API Purpose 
+Auth API Token Retrieve an access token based on the assigned Client ID 
+and Client Secret. 
+REST API  These are Pull APIs that can be used by clients to retrieve 
+data on demand 
+ Status This provides a view of the latest status of all devices 
+including their last known location, their latest telemetry 
+data, as well as their last seen time. The data can be 
+filtered based on location, device-id and time. 
+ Tracking History This provides a historical list of location updates from the 
+devices. The data can be filtered based on device-id and 
+time. 
+ Telemetry History This provides a historical list of telemetry updates from the 
+devices. The data can be filtered based on device-id and 
+time. 
+ Attributes This provides a mechanism to store and retrieve any 
+application specific mapping identifiers linked to the 
+devices. 
+Push API  These APIs allow clients to listen for location and telemetry 
+updates instead of polling the REST APIs 
+ 
+© Atoll Solutions - Confidential      5 
+Websocket 
+These APIs use a client initiated websocket connection 
+(over standard HTTPS) to receive updates from the 
+platform. 
+Clients will typically implement the following sequence of operations: 
+1. Use the Auth API to retrieve the access token. This will be invoked periodically, every 
+time the token expires. 
+2. Use the Status API to retrieve the currently active list of devices, and their latest location 
+and telemetry data 
+3. The following APIs may be applicable depending on the use case: 
+a. Use the Tracking API if there is a user request to view historical location data 
+b. Use the Telemetry API if there is a user request to view historical telemetry data 
+4. Use the Webocket API to receive location and telemetry updates in real time 
+Depending on the application scenario, the client may use different integration approaches: 
+1. An interactive application where presentation updates are triggered by user interactions. 
+In this case, REST based Pull APIs will work 
+2. A monitoring application with some kind of always-on display where updates are pushed 
+in real time. In this case, use the Websocket based Push APIs 
+3. A service that gathers the location and sensor data for further analysis before 
+presentation. In this case, a low frequency polling (>= 1min) of the REST based Pull 
+APIs will work 
+© Atoll Solutions - Confidential      
+6 
+AUTH API 
+The platform uses the OAuth2.0  client-credentials flow for authenticating clients. The ladder 
+diagram below illustrates the steps: 
+Each Kinesis client application will be assigned a unique Client ID and Client Secret. Clients are 
+expected to ensure that the secret is stored and used in a secure fashion. The Client ID is a 
+unique identifier assigned to a given ‘tenant’. 
+If the correct credentials are presented to the authentication API, it will return an access token to 
+the client. The client is required to include the access token in the “x-access-token” header for 
+accessing any other resources. The access token will typically expire in 3600 s, and the client is 
+required to renew the token thereafter using the same API. 
+Request Type: POST 
+Endpoint URL: https://auth.atollkinesis.com/token/auth/client 
+© Atoll Solutions - Confidential      
+7 
+ 
+ 
+Headers: 
+Header Value Description 
+Content-Type application/json Request content type 
+ 
+Body Parameters: 
+Parameter Type Required Value/Description 
+grant_type string yes “client_credentials”  
+client_id string yes Client ID provided by Atoll 
+client_secret string yes Client Secret provided by Atoll 
+scope string no “kinesis” 
+ 
+Response Fields: 
+Field Type Description 
+access_token string Use this in the “x-access-token” in subsequent API calls 
+refresh_token string Not used 
+token_type string “Bearer” 
+expires_in int Expiry time in seconds. Request for a new token  once this 
+expires. 
+ 
+ 
+ 
+ 
+© Atoll Solutions - Confidential      8 
+REST API 
+Client applications will use REST interfaces to integrate with the KMW. They may also provide 
+REST interfaces to receive notifications from the KMW. All URIs will be prefixed by 
+{server-url}/{api-version}/: 
+https://api.alpha.atollkinesis.com/v2 
+As of this document version, the API version is v2. All v2 APIs will require the x-access-token 
+header with a valid access token. 
+The response to the REST APIs as well as the notifications will include a JSON payload in the 
+body structured as follows. 
+{hdr: {k1=v1,k2=v2...}, data:[{k3=v3,k4=v4...},...]} 
+Response Header 
+The following are the keys in the message header for the response to status, telemetry and 
+tracking APIs: 
+Key 
+Description 
+site_id 
+Site ID 
+Values 
+String 
+msg_type 
+paging 
+meta 
+Status APIs 
+Request 
+Message Type 
+JSON structure indicating the first and last Device 
+IDs in the currently returned page 
+JSON structure indicating the the counters related to 
+the currently returned page 
+The following APIs are available for getting the status of various devices: 
+GET 
+© Atoll Solutions - Confidential      
+9 
+ 
+ 
+Description Method URI 
+Get Anc List with Status GET sites/{site-id}/ancd/status 
+Get Tag List with Status GET sites/{site-id}/tagd/status 
+ 
+Each of these APIs supports the following optional query parameters: 
+ 
+Key Description Values 
+device_id Comma separated list of IDs of the 
+Tags / Ancs 
+Device_ID 
+limit The maximum number of samples to 
+be returned in the requested page 
+ 1 < {limit} < 100 
+sort The timestamp used for pagination 
+sorting 
+“device_id” => sort by device id 
+ 
+after Get data that came after the given 
+timestamp 
+Device_ID 
+before Get data that came before the given 
+timestamp 
+Device_ID 
+ 
+The tag status API also supports the following query parameter to filter based on current 
+location: 
+ 
+Key Description Values 
+ref ID of the Anchor/Access-Point Device_ID 
+ 
+Response 
+The response data will be an array of entries. Each entry consists of the following standard 
+fields: 
+ 
+Key Description Values 
+last_seen Timestamp of the last update from the device UTC Timestamp 
+device_id Device ID of the device corresponding to the response Device ID 
+relayer_id Device ID of the gateway that the actual device is 
+relaying information through 
+Device ID 
+ 
+ 
+For tag status, each entry will also contain the following fields: 
+ 
+1. Latest Status 
+Key Description Values 
+status String indicating whether the device is online or offline “online”/“offline” 
+ 
+2. Latest Tracking Data 
+Key Description Values 
+latest_trac JSON structure indicating the latest trac data for the 
+tag: 
+JSON 
+ pos_ref The ID of the Anchor/Access-Point 
+nearest to the tag indicating its position 
+reference. 
+Device ID 
+ timestamp The time at which the position was last 
+updated 
+UTC Timestamp 
+ <others> Other fields can be ignored for the 
+proximity RTLS application 
+ 
+ 
+3. Latest Telemetry Data 
+Key Description Values 
+latest_tele JSON structure indicating the tele 
+updated for the tag: 
+JSON 
+ batt The latest battery 
+level of the cell in 
+the tag 
+Voltage in mV 
+ event The latest event 
+detected on the 
+tag 
+“free_fall” When the tag undergoes a 
+free fall for ~10cm 
+   “long_press” When the button on the 
+tag is pressed for >4s 
+ 
+© Atoll Solutions - Confidential      11 
+ 
+ 
+   “btn_1click” When the button on the 
+tag is clicked once 
+   “btn_2click” When the button on the 
+tag is clicked twice 
+ motion_state The latest motion 
+state of the tag 
+“stationary” When the tag is with a 
+person, and the person is 
+not moving 
+   “still” When the tag is idling in a 
+near horizontal position 
+   “vertical” When the tag is idling in a 
+near vertical position 
+   “moving” When the tag is in motion 
+ <others> Other fields depends on the features supported by the tag 
+ 
+Tracking History APIs 
+Request 
+The following APIs are available for retrieving the tracking history data of tags. A new tracking 
+update is added for a tag whenever there is a change in the tag’s position. 
+Description Method URI 
+Get Tag Tracking History for all 
+Tags in site 
+GET site/{site-id}/tagd/trac 
+ 
+ 
+Each of these APIs supports the following optional query parameters: 
+Key Description Values 
+device_id Comma separated list of IDs of the 
+Tags 
+Device ID  
+sort The timestamp used for pagination 
+sorting 
+“time” => sort by device time 
+“created_on” => sort by server time 
+after Get data that came after the given 
+timestamp 
+UTC Timestamp 
+ 
+© Atoll Solutions - Confidential      12 
+ 
+ 
+before Get data that came before the given 
+timestamp 
+UTC Timestamp 
+limit The maximum number of samples to 
+be returned in the requested page 
+ 1 < {limit} < 100 
+ 
+Response 
+The response data will be an array of entries. Each entry consists of the following standard 
+fields: 
+Key Description Values 
+server_ts Timestamp when the data was received at the server UTC Timestamp 
+device_ts Timestamp when the data was sent by the device UTC Timestamp 
+device_id Device ID of the device corresponding to the response Device ID 
+relayer_id Device ID of the gateway that the actual device is 
+relaying information through 
+Device ID 
+ 
+For tag status, each entry will also contain the following fields: 
+Key Description Values 
+trac JSON structure indicating the trac updated for the tag: JSON 
+ ref The ID of the Anchor/Access-Point 
+nearest to the tag indicating its position 
+reference. 
+Device ID 
+ <others> Other fields can be ignored for the 
+proximity RTLS application 
+ 
+ 
+Telemetry History APIs 
+Request 
+The following APIs are available for retrieving the telemetry history data of tags. A new telemetry 
+update is added for a tag whenever there is a change in any of the telemetry parameters. 
+ 
+Description Method URI 
+ 
+© Atoll Solutions - Confidential      13 
+ 
+ 
+Get Tag Telemetry History for 
+all Tags in site 
+GET site/{site-id}/taga/tele 
+ 
+Each of these APIs supports the following optional query parameters: 
+Key Description Values 
+device_id Comma separated list of IDs of the 
+Tags 
+Device ID  
+sort The timestamp used for pagination 
+sorting 
+“time” => sort by device time 
+“created_on” => sort by server time 
+after Get data that came after the given 
+timestamp 
+UTC Timestamp 
+before Get data that came before the given 
+timestamp 
+UTC Timestamp 
+limit The maximum number of samples to 
+be returned in the requested page 
+ 1 < {limit} < 100 
+ 
+Response 
+The response data will be an array of entries. Each entry consists of the following standard 
+fields: 
+Key Description Values 
+server_ts Timestamp when the data was received at the server UTC Timestamp 
+device_ts Timestamp when the data was sent by the device UTC Timestamp 
+device_id Device ID of the device corresponding to the response Device ID 
+relayer_id Device ID of the gateway that the actual device is 
+relaying information through 
+Device ID 
+ 
+For tag status, each entry will also contain the following fields: 
+Key Description Values 
+tele JSON structure indicating the tele 
+updated for the tag: 
+JSON 
+ batt The latest battery 
+level of the cell in the 
+Voltage in mV 
+ 
+© Atoll Solutions - Confidential      14 
+ 
+ 
+tag 
+ event The latest event 
+detected on the tag 
+“free_fall” When the tag undergoes a 
+free fall for ~10cm 
+   “long_press” When the button on the 
+tag is pressed for >4s 
+   “btn_1click” When the button on the 
+tag is clicked once 
+   “btn_2click” When the button on the 
+tag is clicked twice 
+ motion_state The latest motion 
+state of the tag 
+“stationary” When the tag is with a 
+person, and the person is 
+not moving 
+   “still” When the tag is idling in a 
+near horizontal position 
+   “vertical” When the tag is idling in a 
+near vertical position 
+   “moving” When the tag is in motion 
+ <others> Other fields can be ignored for the proximity RTLS application 
+ 
+ 
+Attribute Retrieval APIs 
+Request 
+The following APIs are available for getting the attributes of various devices: 
+ 
+Description Method URI 
+Get Anc Attributes GET sites/{site-id}/anca/attr 
+Get Tag Attributes GET sites/{site-id}/taga/attr 
+ 
+ 
+Each of these APIs supports the following query parameters: 
+Key Description Values 
+ 
+© Atoll Solutions - Confidential      15 
+ 
+ 
+device_id Comma separated list of IDs of the Tags 
+or Ancs 
+Device_ID 
+limit The maximum number of samples to be 
+returned in the requested page 
+ 1 < {limit} < 20 
+sort The timestamp used for pagination 
+sorting 
+“device_id” => sort by device id 
+ 
+after Get data that came after the given 
+device-id 
+Device_ID 
+before Get data that came before the given 
+device-id 
+Device_ID 
+ 
+ 
+Response 
+The response data will be an array of entries. Each entry consists of the following standard 
+fields: 
+ 
+Key Description Values 
+last_update_from_device 
+ 
+Timestamp of the last update from the device UTC 
+Timestamp 
+device_id Device ID of the device corresponding to the 
+response 
+Device ID 
+server_attrs The server side attributes associated with the 
+device 
+JSON 
+ asset_id A name that can be used to identify the 
+device 
+String 
+ device_id An external identifier that can be used 
+to identify the device 
+String 
+ custom Custom attributes that can be 
+associated with the device. This can be 
+ignored for the proximity RTLS 
+application 
+JSON 
+dev_attrs The device side attributes associated with the 
+device. This can be ignored for the proximity RTLS 
+ 
+ 
+© Atoll Solutions - Confidential      16 
+ 
+ 
+application 
+ 
+Attribute Update APIs 
+Request 
+The following APIs are available for setting the attributes of specific devices: 
+Description Method URI 
+Set Anc Attributes PUT sites/{site-id}/anca/attr 
+Set Tag Attributes PUT sites/{site-id}/taga/attr 
+ 
+The PUT request takes a JSON structure as the body as follows: 
+Key Description Values 
+data The JSON block containing the updates JSON 
+ device_id The ID of the device to be updated Device ID 
+ server_attrs The following fields can be updated simultaneously, or 
+individually 
+JSON 
+  dev_id An external identifier that can be used to 
+identify the device 
+String 
+  asset_id A name that can be used to identify the device String 
+ 
+Payload example: 
+{ 
+    "data": { 
+        "device_id": "d05f6454ff02", 
+        "server_attrs": { 
+            "dev_id": "device_ff02" 
+        } 
+    } 
+} 
+ 
+Response 
+On a successful update, the server will respond with 200 OK. 
+ 
+© Atoll Solutions - Confidential      17 
+ 
+ 
+Notification Client APIs 
+Request 
+The following API is available for registering a notification client: 
+Description Method URI 
+Update Notification 
+Client 
+PATCH sites/{site-id}/notification-clients/{client-id} 
+ 
+The Client ID needs to be sent as a path parameter.  
+ 
+The PATCH request takes a JSON structure as the body as follows: 
+Key Description Values 
+client-id The ID of the client that is registering. This will be 
+same as the path parameter above 
+String 
+type A string describing the type of client. Supported 
+values: - “app” indicates the client is an app 
+String - “app” 
+channel_type A string describing the type of the channel used for 
+the notifications. Supported values: - “websocket” indicates that the client will use a 
+websocket interface 
+String - “websocket” 
+ 
+Payload example: 
+{ 
+    "client_id":CLIENT_ID, 
+    "type":"app", 
+    "channel_type":"websocket" 
+} 
+ 
+Response 
+On a successful update, the server will respond with 200 OK, with the following response fields: 
+ 
+Key Description Values 
+ 
+© Atoll Solutions - Confidential      18 
+'createdOn' 
+'updatedOn' 
+ISO8061 string representing time when notification client 
+was first registered 
+ISO8061 string representing time when notification client 
+was last registered 
+String 
+String 
+'client_id' 
+'type' 
+'channel_type' 
+'channel_config' 
+'subscriptions' 
+<others> 
+Client ID of the client 
+The type of the client - “app” 
+The type of the channel - “websocket” 
+Any configurations associated with the channel - this will be 
+None for websockets 
+Topics that the client is currently subscribed to - this will be 
+None initially 
+Other fields may be ignored  
+String 
+String 
+String 
+String 
+String 
+19 
+© Atoll Solutions - Confidential      
+PUSH API 
+Websockets 
+Clients can register for push updates from the Kinesis server over a websocket connection. The 
+first step will be to register the client using the Notification Client API described in the previous 
+section. 
+Connect 
+Once a client is registered, it can attempt to establish a connection. 
+Request: Websocket Connect 
+Server URL: wss.alpha.atollkinesis.com 
+Connect URL: wss://SERVER_URL/sites/{site_id}/{client_id}/sub?token={access_token} 
+Path Parameters: 
+Parameter 
+site_id 
+Type 
+string 
+Required 
+yes 
+Value/Description 
+The Site ID identifying the tenant 
+client_id 
+access_token 
+Subscribe 
+string 
+string 
+yes 
+yes 
+The Client ID identifying the client application 
+The access token obtained from the Auth API earlier 
+Once the client has established a websocket connection, it will need to subscribe to specific 
+topics. The subscription command will be sent as a json payload, where the ‘data’ field specifies 
+the list of ‘device streams’ and the ‘event topics’ for each stream. The example below illustrates 
+a subscription to all available streams and corresponding topics. 
+{ 
+"hdr":{ 
+"cmd": "sub" 
+}, 
+"data":{ 
+"taga": ["tele", "alert"], 
+"tagd": ["status", "trac"], 
+© Atoll Solutions - Confidential      
+20 
+ 
+ 
+        "anca": ["tele", "alert"], 
+        "ancd": ["status", "trac"] 
+    } 
+} 
+ 
+The table below lists all available device streams, and available topics. Clients may choose to 
+subscribe to any subset of these 
+Device 
+Stream 
+Indentifier Description Event Topics 
+Tag 
+Asset 
+taga Data associated tag environment i.e. 
+telemetry data, or alerts 
+tele & alert 
+Tag 
+Device 
+tagd Data associated with the tag device itself i.e. 
+status (online/offline) or location 
+status and trac 
+Anchor 
+Asset 
+anca Data associated anchor environment i.e. 
+telemetry data, or alerts 
+tele & alert 
+Anchor 
+Device 
+ancd Data associated with the anchor device itself 
+i.e. status (online/offline) or location 
+status and trac 
+ 
+The table below illustrates the common fields of JSON structure of the topic messages that are 
+pushed over the websocket connection: 
+ 
+Field Description 
+hdr Header of the event 
+ site_id Site ID where the event occurred 
+ msg_type String “event” indicates that this is an event data 
+ dev_type String representing the device stream i.e. one of taga, tagd, 
+anca, ancd 
+ evt_type String representing the event topic i.e. one of tele, alert, status, 
+trac 
+ paging Structure indicating the first and last values in this list of events 
+  first Device ID of first event in this list 
+  last Device ID of first event in this list 
+data The data of the event 
+ 
+© Atoll Solutions - Confidential      21 
+ 
+ 
+ device_ts Timestamp of event reported by device 
+ server_ts Timestamp of event reported by server 
+ device_id ID of device reporting the event 
+ relayer_id ID of device relaying the event 
+ <event specific> Other fields are event specific 
+ 
+Example: 
+{ 
+    "hdr":{ 
+        "site_id": <site-id>, 
+        "msg_type": "event", 
+        "dev_type": <"taga" or "tagd" or "anca"or "ancd">, 
+        "evt_type": <"tele" or "alert" or "status"or "trac">, 
+        "paging": {  
+            "first":  <first device>,  
+            "last":  <last device>,  
+        } 
+    }, 
+    "data":[{ 
+        "device_ts": <timestamp of event reported by device>, 
+        "server_ts": <timestamp of event reported on server>, 
+        "device_id": <id of device reporting the event>, 
+        "relayer_id": <id of device relaying the event>, 
+        "session_id": <id of session in which event occurred>, 
+        <others>: <other fields depend on the type of event> 
+    },... 
+    ] 
+} 
+ 
+ 
+The “status” events are sent when there is a change in the online or offline status of a device. 
+The table below describes additional fields sent in the ”data” of the event: 
+Field Description 
+status “online” or “offline” 
+ 
+ 
+The “trac” events are sent when there is a change in the location of a device. The table below 
+describes additional fields sent in the ”data” of the event: 
+ 
+© Atoll Solutions - Confidential      22 
+Field 
+data 
+<Others> 
+Description 
+Represents the “trac” data as seen in the Tracking History section 
+above : Tracking History APIs 
+Other fields may be ignored 
+The “tele” events are sent when there is a change in any of the telemetry fields of a device. The 
+table below describes additional fields sent in the ”data” of the event: 
+Field 
+Description 
+data 
+<Others> 
+Represents the “tele” data as seen in the Telemetry History section 
+above : Telemetry History APIs 
+Other fields may be ignored
